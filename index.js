@@ -22,7 +22,7 @@ const writeApi = influxDB.getWriteApi(influxOrg, influxBucket);
 const queryApi = influxDB.getQueryApi(influxOrg);
 
 // Create Endpoint
-app.post('/api/sensorReading', (req, res) => {
+app.post('/api/sensorReading', async (req, res) => {
   const clientApiKey = req.headers['api-key'];
   if (!clientApiKey || clientApiKey !== process.env.API_KEY) {
     return res.status(401).json({ error: 'Invalid API Key' });
@@ -32,10 +32,17 @@ app.post('/api/sensorReading', (req, res) => {
     return res.status(400).json({ error: 'Missing required data.' });
   }
   const point = new Point('sensor_readings')
-    .tag('deviceId', deviceId).tag('deviceName', deviceName || 'Unknown').tag('location', location || 'Unknown')
-    .floatField('temperature', parseFloat(temperature)).floatField('humidity', parseFloat(humidity));
-  writeApi.writePoint(point);
-  res.status(201).json({ message: 'Data logged.' });
+        .tag('deviceId', deviceId).tag('deviceName', deviceName || 'Unknown').tag('location', location || 'Unknown')
+        .floatField('temperature', parseFloat(temperature)).floatField('humidity', parseFloat(humidity));
+    
+    try {
+        writeApi.writePoint(point);
+        await writeApi.flush(); // <-- เพิ่มบรรทัดนี้เพื่อบังคับให้ส่งข้อมูลทันที
+        res.status(201).json({ message: 'Data logged and flushed.' });
+    } catch (error) {
+        console.error('Error writing to InfluxDB:', error);
+        res.status(500).json({ error: 'Failed to log data to InfluxDB.' });
+    }
 });
 
 app.get('/api/readings/latest', async (req, res) => {
