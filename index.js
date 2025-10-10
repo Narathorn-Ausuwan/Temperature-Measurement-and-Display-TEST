@@ -38,6 +38,7 @@ app.post('/api/sensorReading', async (req, res) => {
     try {
         writeApi.writePoint(point);
         await writeApi.flush(); // <-- เพิ่มบรรทัดนี้เพื่อบังคับให้ส่งข้อมูลทันที
+        console.log(`[INFO] Write SUCCESS for device: ${deviceId}`);
         res.status(201).json({ message: 'Data logged and flushed.' });
     } catch (error) {
         console.error('Error writing to InfluxDB:', error);
