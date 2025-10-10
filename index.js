@@ -23,8 +23,8 @@ const queryApi = influxDB.getQueryApi(influxOrg);
 
 // Create Endpoint
 app.post('/api/sensorReading', (req, res) => {
-  const clientAPI = req.headers['api-key'];
-  if (clientApiKey !== process.env.API_KEY) {
+  const clientApiKey = req.headers['api-key'];
+  if (!clientApiKey || clientApiKey !== process.env.API_KEY) {
     return res.status(401).json({ error: 'Invalid API Key' });
   }
   const { deviceId, deviceName, location, temperature, humidity } = req.body;
