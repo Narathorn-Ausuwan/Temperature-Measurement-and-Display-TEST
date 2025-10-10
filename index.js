@@ -1,6 +1,6 @@
 // Prepare all the libraries
 const express = require('express');
-const {Influx, Point} = require('@influxdata/influxdb-client');
+const {InfluxDB, Point} = require('@influxdata/influxdb-client');
 require('dotenv').config();
 
 // Create variables for conveniently use
