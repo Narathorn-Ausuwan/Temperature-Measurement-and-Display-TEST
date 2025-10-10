@@ -19,6 +19,17 @@ const influxBucket = process.env.INFLUX_BUCKET;
 // Create variables for query and write data to the influxDB
 const influxDB = new InfluxDB({ url: influxURL, token: influxToken });
 const writeApi = influxDB.getWriteApi(influxOrg, influxBucket);
+
+writeApi.on('error', (error) => {
+    console.error('*** Write to InfluxDB failed! ***', error);
+});
+
+writeApi.on('success', () => {
+    // ข้อมูลถูกเขียนสำเร็จ (จะเกิดขึ้นเมื่อ buffer ถูก flush)
+    // สำหรับการ debug เท่านั้น การ log ทุกครั้งอาจทำให้ log เยอะเกินไป
+    // console.log('Data batch successfully written.');
+});
+
 const queryApi = influxDB.getQueryApi(influxOrg);
 
 // Create Endpoint

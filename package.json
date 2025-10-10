@@ -11,7 +11,6 @@
   "license": "ISC",
   "dependencies": {
     "@influxdata/influxdb-client": "^1.35.0",
-    "@influxdata/influxdb3-client": "^1.4.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0"
   }
