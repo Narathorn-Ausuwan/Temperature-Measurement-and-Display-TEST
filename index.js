@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000; // Port will be the render's port, value = 3000 if null
 
 app.use(express.json());
-app.use(express.static('frontend'));
+app.use(express.static('public'));
 
 // Get all the important datas from env
 const influxURL = process.env.INFLUX_URL;
