@@ -1,41 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Test Page</title>
-  <style>
-    body {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-      font-family: sans-serif;
-      background-color: #e0f2f1;
-      color: #004d40;
-    }
-    .container {
-      text-align: center;
-      border: 2px dashed #00796b;
-      padding: 40px;
-      border-radius: 10px;
-    }
-    h1 {
-      font-size: 2.5em;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensor Dashboard</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        button { font-size: 16px; padding: 10px; cursor: pointer; }
+    </style>
 </head>
 <body>
+    <h1>Sensor Dashboard</h1>
+    
+    <button id="enable-notifications-btn" style="display: none;">
+        🔔 เปิดการแจ้งเตือน
+    </button>
+    <p id="notification-status"></p>
+    
+    <hr>
+    
+    <div id="history">
+        <h2>History</h2>
+        </div>
 
-  <div class="container">
-    <h1>✅ Success! Your Server is Working!</h1>
-    <p>
-      ถ้าคุณเห็นหน้านี้ แสดงว่า Express.js สามารถเสิร์ฟไฟล์จากโฟลเดอร์ `public` ได้อย่างถูกต้องแล้ว
-    </p>
-    <p>
-      (If you see this page, it means Express.js is serving files from the `public` folder correctly.)
-    </p>
-  </div>
-
+    <script src="/main.js"></script>
 </body>
 </html>

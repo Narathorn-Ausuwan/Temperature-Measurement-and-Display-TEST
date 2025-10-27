@@ -1,11 +1,12 @@
 // Prepare all the libraries
 const express = require('express');
-const {InfluxDB, Point} = require('@influxdata/influxdb-client');
+const { InfluxDB, Point } = require('@influxdata/influxdb-client');
+const webpush = require('web-push'); // <-- 1. เพิ่ม web-push
 require('dotenv').config();
 
 // Create variables for conveniently use
 const app = express();
-const PORT = process.env.PORT || 3000; // Port will be the render's port, value = 3000 if null
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.static('public'));
@@ -16,29 +17,90 @@ const influxToken = process.env.INFLUX_TOKEN;
 const influxOrg = process.env.INFLUX_ORG;
 const influxBucket = process.env.INFLUX_BUCKET;
 
+// --- 2. ตั้งค่า VAPID สำหรับ Web Push ---
+const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+const vapidSubject = process.env.VAPID_SUBJECT;
+
+webpush.setVapidDetails(
+    vapidSubject,
+    vapidPublicKey,
+    vapidPrivateKey
+);
+
+// --- 3. สร้างที่เก็บ Subscriptions ---
+// (ใน Production ควรใช้ Database แต่สำหรับตัวอย่างนี้ เราเก็บใน Memory)
+let subscriptions = [];
+
 // Create variables for query and write data to the influxDB
 const influxDB = new InfluxDB({ url: influxURL, token: influxToken });
 const writeApi = influxDB.getWriteApi(influxOrg, influxBucket);
 const queryApi = influxDB.getQueryApi(influxOrg);
 
-// Create Endpoint
+// --- 4. สร้าง Endpoint ใหม่สำหรับ Push Notifications ---
+
+// Endpoint ให้ Client มาขอ VAPID Public Key
+app.get('/api/vapid-public-key', (req, res) => {
+    res.send(vapidPublicKey);
+});
+
+// Endpoint รับการ "Subscribe" (ติดตาม) จาก Client
+app.post('/api/subscribe', (req, res) => {
+    const subscription = req.body;
+    // (ควรมีการตรวจสอบว่า subscription นี้มีอยู่แล้วหรือยัง)
+    subscriptions.push(subscription);
+    console.log('[INFO] New subscription received:', subscription.endpoint);
+    res.status(201).json({ message: 'Subscribed' });
+});
+
+
+// --- 5. แก้ไข Endpoint เดิม ให้ส่ง Notification เมื่อเงื่อนไขตรง ---
 app.post('/api/sensorReading', async (req, res) => {
-  const clientApiKey = req.headers['api-key'];
-  if (!clientApiKey || clientApiKey !== process.env.API_KEY) {
-    return res.status(401).json({ error: 'Invalid API Key' });
-  }
-  const { deviceId, deviceName, location, temperature, humidity } = req.body;
-  if (!deviceId || temperature === undefined || humidity === undefined) {
-    return res.status(400).json({ error: 'Missing required data.' });
-  }
-  const point = new Point('sensor_readings')
+    const clientApiKey = req.headers['api-key'];
+    if (!clientApiKey || clientApiKey !== process.env.API_KEY) {
+        return res.status(401).json({ error: 'Invalid API Key' });
+    }
+    const { deviceId, deviceName, location, temperature, humidity } = req.body;
+    if (!deviceId || temperature === undefined || humidity === undefined) {
+        return res.status(400).json({ error: 'Missing required data.' });
+    }
+    const point = new Point('sensor_readings')
         .tag('deviceId', deviceId).tag('deviceName', deviceName || 'Unknown').tag('location', location || 'Unknown')
         .floatField('temperature', parseFloat(temperature)).floatField('humidity', parseFloat(humidity));
-    
+
     try {
         writeApi.writePoint(point);
-        await writeApi.flush(); // <-- เพิ่มบรรทัดนี้เพื่อบังคับให้ส่งข้อมูลทันที
+        await writeApi.flush();
         console.log(`[INFO] Write SUCCESS for device: ${deviceId}`);
+
+        // --- 🔔 L O G I C การแจ้งเตือน ---
+        // ตรวจสอบเงื่อนไข (เช่น: อุณหภูมิสูงเกิน 30 องศา)
+        const tempValue = parseFloat(temperature);
+        if (tempValue > 30) { // <-- ⭐️ ตั้งเงื่อนไขการแจ้งเตือนที่นี่
+            console.log(`[ALERT] Temperature high (${tempValue}C). Sending notifications...`);
+            
+            // สร้าง Payload (ข้อมูลที่จะส่งไป)
+            const payload = JSON.stringify({
+                title: 'Sensor Alert! 🚨',
+                body: `อุณหภูมิสูงผิดปกติ: ${tempValue.toFixed(1)}°C\nDevice: ${deviceName || deviceId}`,
+                url: '/#history' // ⭐️ URL ที่จะเปิดเมื่อคลิก (เช่น ไปหน้าประวัติ)
+            });
+
+            // ส่ง Notification ไปให้ "ทุกคน" ที่ subscribe
+            const sendPromises = subscriptions.map(sub => 
+                webpush.sendNotification(sub, payload)
+                    .catch(err => {
+                        console.error(`[ERROR] Failed to send notification to ${sub.endpoint}:`, err.statusCode);
+                        // ถ้าส่งไม่สำเร็จ (เช่น ผู้ใช้ถอนสิทธิ์) เราควรลบ subscription นี้ออก
+                        if (err.statusCode === 410 || err.statusCode === 404) {
+                            subscriptions = subscriptions.filter(s => s.endpoint !== sub.endpoint);
+                        }
+                    })
+            );
+            await Promise.all(sendPromises);
+        }
+        // --- จบ Logic การแจ้งเตือน ---
+
         res.status(201).json({ message: 'Data logged and flushed.' });
     } catch (error) {
         console.error('Error writing to InfluxDB:', error);
