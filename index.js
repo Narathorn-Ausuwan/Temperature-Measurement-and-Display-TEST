@@ -46,10 +46,45 @@ app.get('/api/vapid-public-key', (req, res) => {
 
 // Endpoint รับการ "Subscribe" (ติดตาม) จาก Client
 app.post('/api/subscribe', (req, res) => {
-    const subscription = req.body;
-    // (ควรมีการตรวจสอบว่า subscription นี้มีอยู่แล้วหรือยัง)
-    subscriptions.push(subscription);
-    console.log('[INFO] New subscription received:', subscription.endpoint);
+    const subscription = req.body; // <-- นี่คือ "ที่อยู่" ของผู้ใช้ใหม่
+
+    // (เพิ่มการตรวจสอบง่ายๆ ว่ามี "ที่อยู่" นี้ในระบบหรือยัง)
+    const existingSub = subscriptions.find(s => s.endpoint === subscription.endpoint);
+
+    if (!existingSub) {
+        // ถ้ายังไม่มี ให้เพิ่มเข้าไป
+        subscriptions.push(subscription);
+        console.log('[INFO] New subscription received:', subscription.endpoint);
+
+        // --- ⭐️ ส่ง Welcome Notification ทันที ---
+        try {
+            const payload = JSON.stringify({
+                title: 'ยินดีต้อนรับ! 👋',
+                body: 'คุณได้เปิดการแจ้งเตือนเรียบร้อยแล้ว',
+                url: '/' // URL ที่จะเปิดเมื่อคลิก (ไปหน้าแรก)
+            });
+
+            // ส่ง "fire-and-forget" (ไม่ต้อง await)
+            // เราไม่ต้องการให้การตอบกลับ client ช้า
+            webpush.sendNotification(subscription, payload)
+                .then(() => {
+                    console.log(`[INFO] Welcome notification sent to ${subscription.endpoint}`);
+                })
+                .catch(err => {
+                    // ถ้าส่งไม่สำเร็จ ก็แค่ log ไว้
+                    console.error(`[ERROR] Failed to send welcome notification:`, err.statusCode);
+                });
+
+        } catch (error) {
+            console.error('[ERROR] Failed to prepare welcome notification:', error);
+        }
+        // --- จบส่วน Welcome Notification ---
+
+    } else {
+        console.log('[INFO] Subscription already exists:', subscription.endpoint);
+    }
+    
+    // ตอบกลับ Client ทันทีว่า "Subscribe" สำเร็จแล้ว
     res.status(201).json({ message: 'Subscribed' });
 });
 
